@@ -1,69 +1,49 @@
-import joblib
+import streamlit as st
 import pandas as pd
-from flask import Flask, request, jsonify
+import requests
 
-# Initialize Flask app
-sales_price_api = Flask("SuperKart Sales Forecasting")
+# Streamlit UI for Boston Housing Price Prediction
+st.title("SuperKart Sales Forecasting App")
+st.write("This app accurately forecast the sales revenue of SuperKart outlets for the upcoming quarter.")
+st.write("Move the sliders below to adjust values and get a prediction.")
 
-# Load the trained Boston housing model
-model = joblib.load("SuperKart_v1_0.joblib")
+# Collect user input using sliders
+Product_Weight = st.slider("Weight of each product", 0.0, 25.0, 0.0, 0.01)
+Product_Allocated_Area = st.slider("Ratio of the allocated display area of each product to the total display area of all the products in a store", 0.0, 1.0, 0.0, 0.001)
+Product_MRP = st.slider("Maximum retail price of each product", 0.0, 300.0, 0.0, 1.0)
+Store_Establishment_Year = st.slider("Nitric oxides concentration (NX)", 1980, 2020, 1980, 1)
 
-# Define a route for the home page
-@sales_price_api.get('/')
-def home():
-    return "Welcome to the SuperKart Sales Forecasting API!"
+# Categorical feature
+# CHAS = st.selectbox("Charles River dummy variable (CHAS)", ["0 (No)", "1 (Yes)"])
+# CHAS_value = 1 if CHAS.startswith("1") else 0
 
-# Define an endpoint to predict price for a single store
-@sales_price_api.post('/v1/storesales')
-def predict_sales_price():
-    # Get JSON data from the request
-    sales_data = request.get_json()
+# Create input DataFrame
+input_data = {
+    'Product Weight': Product_Weight,
+    'Product_Allocated_Area': Product_Allocated_Area,
+    'Product MRP': Product_MRP,
+    'Store Establishment Year': Store_Establishment_Year
+}
 
-    # Extract relevant house features from the input data
-    sample = {
-        'Product Weight': sales_data['Product_Weight'],
-        'Product Allocated Area': sales_data['Product_Allocated_Area'],
-        'Product MRP': sales_data['Product_MRP'],
-        'Store Establishment Year': sales_data['Store_Establishment_Year'],
-        'Store Size': sales_data['Store_Size'],
-        'Store Location City Type': sales_data['Store_Location_City_Type'],
-        'Store Type': sales_data['Store_Type'],
-        'Product Id': sales_data['Product_Id'],
-        'Product Type': sales_data['Product_Type'],
-        'Store Id': sales_data['Store_Id'],
-        'Product Sugar Content': sales_data['Product_Sugar_Content'],
-        'Product Store Sales Total': sales_data['Product_Store_Sales_Total']
-    }
+if st.button("Forecast", type='primary'):
+    response = requests.post("https://abhaypsbisht-Superkart.hf.space/v1/storesales", json=input_data)    # enter user name and space name before running the cell
+    if response.status_code == 200:
+        result = response.json()
+        predicted_sales = result["Predicted_PSST"]
+        st.success(f"🏡 Predicted Product Store Sales Total: **${predicted_sales}**")
+    else:
+        st.error("Error in API request")
 
-    # Convert the extracted data into a DataFrame
-    input_data = pd.DataFrame([sample])
+# Batch Prediction
+st.subheader("Batch Prediction")
 
-    # Make a prediction using the trained model
-    prediction = model.predict(input_data).tolist()[0]
-
-    # Return the prediction as a JSON response
-    return jsonify({'Predicted_PSST': prediction})
-
-# Define an endpoint to predict price for a batch of stores
-@sales_price_api.post('/v1/storesalesbatch')
-def predict_store_batch():
-    # Get the uploaded CSV file from the request
-    file = request.files['file']
-
-    # Read the file into a DataFrame
-    input_data = pd.read_csv(file)
-
-    # Make predictions for the batch data
-    predictions = model.predict(input_data).tolist()
-
-    # Add predictions to the DataFrame
-    input_data['Predicted_PSST'] = predictions
-
-    # Convert results to dictionary
-    result = input_data.to_dict(orient="records")
-
-    return jsonify(result)
-
-# Run the Flask app in debug mode
-if __name__ == '__main__':
-    sales_price_api.run(debug=True)
+file = st.file_uploader("Upload CSV file", type=["csv"])
+if file is not None:
+    if st.button("Predict for Batch", type='primary'):
+        response = requests.post("https://abhaypsbisht-Superkart.hf.space/v1/storesalesbatch", files={"file": file})    # enter user name and space name before running the cell
+        if response.status_code == 200:
+            result = response.json()
+            st.header("Batch Prediction Results")
+            st.write(result)
+        else:
+            st.error("Error in API request")
